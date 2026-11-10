@@ -1,14 +1,15 @@
 # .github/workflows/build.yml
 name: Build and release
 
-# Rebuilds the apps and refreshes the "latest" release on every push to main.
+# Two ways to get new apps:
+#  1. Push code to main      -> the "OfflineDrop (latest)" release is refreshed.
+#  2. Publish a version tag  -> the apps are attached to that numbered release
+#                               (for example v1.0.4).
 # You can also start it by hand from the Actions tab (Run workflow).
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'README.md'
-      - 'LICENSE'
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -60,14 +61,30 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Replace the latest release
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -l dist
-          gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
-          gh release create latest dist/* \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
-            --title "OfflineDrop (latest)" \
-            --notes "Automatically built from the newest code (commit ${GITHUB_SHA::7}). Download the file for your computer below and see the README for how to use it."
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            # A version tag such as v1.0.4: attach the apps to that numbered release.
+            TAG="$GITHUB_REF_NAME"
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+              gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+            else
+              gh release create "$TAG" dist/* \
+                --repo "$GITHUB_REPOSITORY" \
+                --verify-tag \
+                --title "OfflineDrop $TAG" \
+                --generate-notes
+            fi
+          else
+            # A push to main: replace the rolling "latest" release.
+            gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+            gh release create latest dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --latest=false \
+              --title "OfflineDrop (latest)" \
+              --notes "Automatically built from the newest code (commit ${GITHUB_SHA::7}). Download the file for your computer below and see the README for how to use it."
+          fi
