@@ -1,9 +1,15 @@
 # .github/workflows/build.yml
 name: Build and release
 
+# Rebuilds the apps and refreshes the "latest" release on every push to main.
+# You can also start it by hand from the Actions tab (Run workflow).
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - 'LICENSE'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -35,9 +41,33 @@ jobs:
         if: runner.os == 'macOS'
         run: cd dist && zip ../OfflineDrop-Mac.zip OfflineDrop
 
-      - name: Attach to release
-        uses: softprops/action-gh-release@v2
+      - name: Save build
+        uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: app-${{ runner.os }}
+          path: |
             OfflineDrop-Windows.exe
             OfflineDrop-Mac.zip
+          if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect builds
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Replace the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l dist
+          gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          gh release create latest dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "OfflineDrop (latest)" \
+            --notes "Automatically built from the newest code (commit ${GITHUB_SHA::7}). Download the file for your computer below and see the README for how to use it."

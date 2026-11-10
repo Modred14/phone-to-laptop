@@ -52,7 +52,7 @@ python3 server.py 8000 /recv/dir /share/dir  # custom port, receive folder, shar
 
 Defaults: received files go to `~/Downloads`, shared files are read from `~/OfflineDrop-Share`.
 
-Releases are built automatically with GitHub Actions when a version tag (like `v1.0.0`) is pushed.
+The apps on the Releases page are rebuilt automatically by GitHub Actions on every push to `main` (see `.github/workflows/build.yml`).
 
 ## License
 
