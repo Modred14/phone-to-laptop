@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OfflineDrop: move files between your phone and laptop, no internet needed</title>
+<meta name="description" content="Free, open-source app that sends photos, videos and files between your phone and your computer over your own Wi-Fi or hotspot. No internet, no account.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232f5bff'/%3E%3Cpath d='M18 24h26l-7-7M46 40H20l7 7' stroke='white' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #e8edf4; --ink: #101828; --mut: #475467;
+    --glass: rgba(255,255,255,.52); --edge: rgba(255,255,255,.85); --line: rgba(16,24,40,.12);
+    --shadow: 0 12px 40px rgba(16,24,40,.10);
+    --btn: #101828; --btn-ink: #ffffff;
+    --blue: #2f5bff; --mint: #35d0a8; --sun: #ff9f43; --lilac: #b39bff;
+    --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    --body: "Instrument Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1020; --ink: #eef2ff; --mut: #a8b2c9;
+      --glass: rgba(255,255,255,.08); --edge: rgba(255,255,255,.18); --line: rgba(255,255,255,.14);
+      --shadow: 0 12px 40px rgba(0,0,0,.45);
+      --btn: #eef2ff; --btn-ink: #0b1020;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 96px; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 17px/1.6 var(--body); overflow-x: hidden; }
+  a { color: inherit; }
+  a:focus-visible, summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; border-radius: 12px; }
+  .wrap { width: min(1120px, 100% - 40px); margin-inline: auto; }
+
+  /* Solid shapes sit behind the glass so the blur has something to bend */
+  .shapes { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+  .shapes i { position: absolute; display: block; }
+  .s1 { width: min(520px, 70vw); aspect-ratio: 1; border-radius: 50%; background: var(--blue); right: -8vw; top: 6vh; }
+  .s2 { width: 210px; aspect-ratio: 1; border-radius: 50%; background: var(--sun); left: 6vw; top: 58vh; }
+  .s3 { width: 300px; aspect-ratio: 1; border-radius: 64px; background: var(--mint); right: 14vw; bottom: -90px; transform: rotate(18deg); }
+  .s4 { width: 150px; aspect-ratio: 1; border-radius: 50%; background: var(--lilac); left: 38vw; top: 9vh; }
+
+  .glass {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(24px) saturate(165%);
+    backdrop-filter: blur(24px) saturate(165%);
+    border: 1px solid var(--edge);
+    box-shadow: var(--shadow), inset 0 1px 0 var(--edge);
+  }
+
+  /* Navigation */
+  .nav { position: sticky; top: 14px; z-index: 10; margin-top: 14px; display: flex; align-items: center; justify-content: space-between;
+         padding: 10px 12px 10px 18px; border-radius: 999px; }
+  .brand { display: flex; align-items: center; gap: 10px; font: 700 20px var(--display); text-decoration: none; letter-spacing: -.01em; }
+  .mark { width: 32px; height: 32px; border-radius: 10px; background: var(--blue); display: grid; place-items: center; }
+  .nav ul { display: flex; gap: 6px; list-style: none; margin: 0; padding: 0; align-items: center; }
+  .nav li a { text-decoration: none; padding: 8px 14px; border-radius: 999px; font-weight: 500; font-size: 15px; color: var(--mut); }
+  .nav li a:hover { color: var(--ink); background: var(--line); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 24px; border-radius: 999px;
+         font: 600 16px var(--body); text-decoration: none; background: var(--btn); color: var(--btn-ink); border: 1px solid transparent; transition: transform .15s ease; }
+  .btn:hover { transform: translateY(-2px); }
+  .btn.ghost { background: var(--glass); color: var(--ink); border-color: var(--edge); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+  .btn.small { padding: 9px 18px; font-size: 15px; }
+  .btn svg { flex: none; }
+
+  /* Hero */
+  .hero { display: grid; grid-template-columns: 1.02fr .98fr; gap: 56px; align-items: center; padding: 72px 0 56px; }
+  h1 { font: 700 clamp(40px, 6vw, 68px)/1.02 var(--display); letter-spacing: -.035em; margin: 0 0 22px; }
+  .lead { font-size: 19px; color: var(--mut); max-width: 33em; margin: 0 0 32px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .fine { margin: 18px 0 0; font-size: 14px; color: var(--mut); }
+  #mobilenote { display: none; margin: 16px 0 0; padding: 12px 16px; border-radius: 16px; font-size: 15px; }
+
+  .scene { position: relative; min-height: 470px; }
+  .win { position: absolute; left: 0; top: 14px; width: 84%; border-radius: 26px; padding: 18px 20px 22px; }
+  .dots { display: flex; align-items: center; gap: 7px; margin-bottom: 18px; }
+  .dots i { width: 11px; height: 11px; border-radius: 50%; background: var(--line); }
+  .dots span { margin-left: 8px; font: 600 14px var(--display); color: var(--mut); }
+  .lbl { margin: 0 0 12px; font: 700 15px var(--display); }
+  .row { margin-bottom: 16px; }
+  .rn { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+  .rn b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rn span, .row small { color: var(--mut); font-size: 13px; }
+  .track { height: 7px; border-radius: 99px; background: var(--line); margin: 7px 0 4px; overflow: hidden; }
+  .track u { display: block; height: 100%; border-radius: 99px; background: var(--mint); width: var(--to); }
+  .track u.go { background: var(--blue); }
+  .phone { position: absolute; right: 0; bottom: 0; width: 46%; min-width: 210px; border-radius: 38px; padding: 30px 16px 20px; border-width: 2px; }
+  .phone::before { content: ""; position: absolute; top: 11px; left: 50%; width: 54px; height: 6px; margin-left: -27px; border-radius: 9px; background: var(--line); }
+  .pf { padding: 11px 12px; border-radius: 16px; background: var(--glass); border: 1px solid var(--edge); margin-bottom: 10px; font-size: 13px; }
+  .pf b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pf span { color: var(--mut); font-size: 12px; }
+  .pf em { display: block; margin-top: 8px; padding: 7px; text-align: center; border-radius: 10px; background: var(--blue); color: #fff; font: 600 12px var(--body); font-style: normal; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .track u { animation: fill 1.8s cubic-bezier(.2,.7,.2,1) both; }
+    .track u.d2 { animation-delay: .5s; }
+    .track u.d3 { animation-delay: 1s; }
+    .s1 { animation: drift 14s ease-in-out infinite alternate; }
+    .s2 { animation: drift 11s ease-in-out infinite alternate-reverse; }
+  }
+  @keyframes fill { from { width: 0; } }
+  @keyframes drift { to { transform: translateY(26px); } }
+
+  /* Sections */
+  section { padding: 56px 0; }
+  h2 { font: 700 clamp(30px, 4vw, 44px)/1.08 var(--display); letter-spacing: -.03em; margin: 0 0 14px; }
+  .sub { color: var(--mut); max-width: 34em; margin: 0 0 32px; }
+
+  .strip { display: grid; grid-template-columns: repeat(3, 1fr); border-radius: 30px; overflow: hidden; }
+  .strip article { padding: 34px 30px 36px; }
+  .strip article + article { border-left: 1px solid var(--line); }
+  .ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; margin-bottom: 18px; background: var(--glass); border: 1px solid var(--edge); }
+  h3 { font: 700 21px/1.2 var(--display); letter-spacing: -.015em; margin: 0 0 8px; }
+  .strip p, .steps p { margin: 0; color: var(--mut); font-size: 16px; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .steps article { padding: 28px; border-radius: 28px; }
+  .steps article:nth-child(2) { margin-top: 28px; }
+  .steps article:nth-child(3) { margin-top: 56px; }
+  .num { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 16px; background: var(--btn); color: var(--btn-ink); font: 700 16px var(--display); }
+
+  .get { border-radius: 36px; padding: clamp(28px, 5vw, 56px); text-align: center; }
+  .get .sub { margin-inline: auto; }
+  .get .cta { justify-content: center; }
+  details { text-align: left; max-width: 640px; margin: 14px auto 0; border-radius: 18px; background: var(--glass); border: 1px solid var(--edge); }
+  details:first-of-type { margin-top: 34px; }
+  summary { cursor: pointer; padding: 16px 20px; font-weight: 600; font-size: 16px; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; font: 500 22px/1 var(--body); color: var(--mut); }
+  details[open] summary::after { content: "\2212"; }
+  details p { margin: 0; padding: 0 20px 18px; color: var(--mut); font-size: 15px; }
+
+  footer { padding: 36px 0 48px; text-align: center; color: var(--mut); font-size: 14px; }
+  footer a { margin: 0 8px; }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; gap: 40px; padding-top: 44px; }
+    .scene { min-height: 440px; max-width: 520px; }
+    .strip, .steps { grid-template-columns: 1fr; }
+    .strip article + article { border-left: 0; border-top: 1px solid var(--line); }
+    .steps article:nth-child(n) { margin-top: 0; }
+    .nav li:not(:last-child) { display: none; }
+  }
+  @media (max-width: 480px) {
+    .win { width: 92%; } .phone { width: 58%; }
+    .btn { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="shapes" aria-hidden="true"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i></div>
+
+<div class="wrap">
+  <nav class="nav glass" aria-label="Main">
+    <a class="brand" href="#top" id="top">
+      <span class="mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-4-4M19 16H5l4 4"/></svg></span>
+      OfflineDrop
+    </a>
+    <ul>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#download">Download</a></li>
+      <li><a class="btn small" href="https://github.com/Modred14/phone-to-laptop">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <header class="hero">
+    <div>
+      <h1>Move files between your phone and laptop. No internet needed.</h1>
+      <p class="lead">Send photos, videos and documents both ways over your own Wi‑Fi or phone hotspot. Scan a code, pick your files, done.</p>
+      <div class="cta">
+        <a class="btn" id="primary" href="https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Windows.exe">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+          <span id="primaryText">Download for Windows</span>
+        </a>
+        <a class="btn ghost" id="secondary" href="https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Mac.zip">
+          <span id="secondaryText">Download for Mac</span>
+        </a>
+      </div>
+      <p class="fine">Free and open source. Mac version needs Apple silicon (M1 or newer).</p>
+      <p class="glass" id="mobilenote">You’re on a phone. Open this page on your laptop to download the app.</p>
+    </div>
+
+    <div class="scene" aria-hidden="true">
+      <div class="win glass">
+        <div class="dots"><i></i><i></i><i></i><span>OfflineDrop</span></div>
+        <p class="lbl">Send to phone</p>
+        <div class="row"><div class="rn"><b>Holiday-video.mp4</b><span>412 MB</span></div><div class="track"><u style="--to:100%"></u></div><small>Sent</small></div>
+        <div class="row"><div class="rn"><b>IMG_6537.dng</b><span>18.3 MB</span></div><div class="track"><u class="d2" style="--to:100%"></u></div><small>Sent</small></div>
+        <div class="row"><div class="rn"><b>Resume.pdf</b><span>1.2 MB</span></div><div class="track"><u class="go d3" style="--to:64%"></u></div><small>64%</small></div>
+      </div>
+      <div class="phone glass">
+        <p class="lbl">Files from laptop</p>
+        <div class="pf"><b>Holiday-video.mp4</b><span>412 MB</span><em>Download</em></div>
+        <div class="pf"><b>IMG_6537.dng</b><span>18.3 MB</span><em>Download</em></div>
+      </div>
+    </div>
+  </header>
+
+  <section id="features">
+    <div class="strip glass">
+      <article>
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h15l-4-4M20 15H5l4 4"/></svg></div>
+        <h3>Works both ways</h3>
+        <p>Send from your phone to your laptop, or share files from your laptop and download them on your phone.</p>
+      </article>
+      <article>
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 19.5h.01M4 4l16 16"/></svg></div>
+        <h3>No internet needed</h3>
+        <p>Files travel over your own Wi‑Fi or hotspot. Nothing is uploaded to a server or stored in the cloud.</p>
+      </article>
+      <article>
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg></div>
+        <h3>Free and open source</h3>
+        <p>No account and no ads. The code is public on GitHub for anyone to read and improve.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="how">
+    <h2>Three steps, nothing to set up</h2>
+    <p class="sub">If you can scan a QR code, you can use OfflineDrop.</p>
+    <div class="steps">
+      <article class="glass"><div class="num">1</div><h3>Open the app</h3><p>A window appears with a QR code and an address for your phone.</p></article>
+      <article class="glass"><div class="num">2</div><h3>Join the same network</h3><p>Use the same Wi‑Fi on both devices, or turn on your phone’s hotspot and connect your laptop to it.</p></article>
+      <article class="glass"><div class="num">3</div><h3>Scan and send</h3><p>Scan the code with your phone’s camera, choose your files and tap Send.</p></article>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="get glass">
+      <h2>Get OfflineDrop</h2>
+      <p class="sub">Free for Windows and Mac. You only need the internet to download it.</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Windows.exe">Download for Windows</a>
+        <a class="btn ghost" href="https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Mac.zip">Download for Mac</a>
+      </div>
+
+      <details>
+        <summary>Windows says the app is blocked or unsafe</summary>
+        <p>OfflineDrop isn’t signed with a paid certificate yet, so Windows may warn you. Click More info, then Run anyway, and choose Allow if asked about network access. If Smart App Control blocks it without a way to continue, install Python, download server.py from GitHub and run “python server.py” instead.</p>
+      </details>
+      <details>
+        <summary>Using a Mac</summary>
+        <p>Unzip the download, right-click OfflineDrop, choose Open, then Open again. If it still won’t start, go to System Settings, Privacy &amp; Security and choose Open Anyway.</p>
+      </details>
+      <details>
+        <summary>Is it safe to leave open?</summary>
+        <p>While the app is running, anyone on the same network can send you files or download what you share. Use it on your home Wi‑Fi or your own hotspot, not on public Wi‑Fi, and close it when you’re done.</p>
+      </details>
+    </div>
+  </section>
+
+  <footer>
+    <p>OfflineDrop is free and open source under the MIT license.</p>
+    <p><a href="https://github.com/Modred14/phone-to-laptop">Source code</a><a href="https://github.com/Modred14/phone-to-laptop/releases">All releases</a></p>
+  </footer>
+</div>
+
+<script>
+  // Put the download that matches the visitor's computer first.
+  (function () {
+    var ua = navigator.userAgent || "";
+    var isPhone = /iPhone|iPad|iPod|Android/i.test(ua);
+    var isMac = !isPhone && /Mac/i.test(navigator.platform || ua);
+    if (isMac) {
+      var p = document.getElementById("primary"), s = document.getElementById("secondary");
+      var win = "https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Windows.exe";
+      var mac = "https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Mac.zip";
+      p.href = mac; s.href = win;
+      document.getElementById("primaryText").textContent = "Download for Mac";
+      document.getElementById("secondaryText").textContent = "Download for Windows";
+    }
+    if (isPhone) document.getElementById("mobilenote").style.display = "block";
+  })();
+</script>
+</body>
+</html>
