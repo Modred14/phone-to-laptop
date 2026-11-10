@@ -403,6 +403,248 @@ class Handler(BaseHTTPRequestHandler):
         print(f"  [SENT] {name}  {size/1e6:.1f} MB  ({size/1e6/secs:.1f} MB/s)")
 
 
+# ---------------------------------------------------------------------------
+# Tiny QR code generator (byte mode, error correction level M, versions 1-6),
+# so the startup window can show a code the phone camera can scan.
+# The structure follows Project Nayuki's MIT-licensed QR Code generator.
+# ---------------------------------------------------------------------------
+_QR_ECC_PER_BLOCK = [10, 16, 26, 18, 24, 16]  # level M, versions 1..6
+_QR_NUM_BLOCKS = [1, 1, 1, 2, 2, 4]
+
+
+def _gf_mul(x, y):
+    z = 0
+    for i in range(7, -1, -1):
+        z = (z << 1) ^ ((z >> 7) * 0x11D)
+        z ^= ((y >> i) & 1) * x
+    return z
+
+
+def _rs_divisor(degree):
+    result = [0] * (degree - 1) + [1]
+    root = 1
+    for _ in range(degree):
+        for j in range(degree):
+            result[j] = _gf_mul(result[j], root)
+            if j + 1 < degree:
+                result[j] ^= result[j + 1]
+        root = _gf_mul(root, 2)
+    return result
+
+
+def _rs_remainder(data, divisor):
+    result = [0] * len(divisor)
+    for b in data:
+        factor = b ^ result.pop(0)
+        result.append(0)
+        for i, coef in enumerate(divisor):
+            result[i] ^= _gf_mul(coef, factor)
+    return result
+
+
+def make_qr(text):
+    """Return the QR code for `text` as a list of rows of booleans (True = dark)."""
+    data = text.encode("utf-8")
+    for ver in range(1, 7):
+        raw = (16 * ver + 128) * ver + 64
+        if ver >= 2:
+            num_align = ver // 7 + 2
+            raw -= (25 * num_align - 10) * num_align - 55
+        capacity = raw // 8 - _QR_ECC_PER_BLOCK[ver - 1] * _QR_NUM_BLOCKS[ver - 1]
+        if 4 + 8 + len(data) * 8 <= capacity * 8:
+            break
+    else:
+        raise ValueError("text too long for the built-in QR generator")
+    size = ver * 4 + 17
+
+    # 1. Data bits: mode (byte), length, payload, terminator, padding.
+    bits = []
+
+    def put(value, count):
+        bits.extend((value >> i) & 1 for i in range(count - 1, -1, -1))
+
+    put(0b0100, 4)
+    put(len(data), 8)
+    for b in data:
+        put(b, 8)
+    put(0, min(4, capacity * 8 - len(bits)))
+    while len(bits) % 8:
+        bits.append(0)
+    pad = 0xEC
+    while len(bits) < capacity * 8:
+        put(pad, 8)
+        pad ^= 0xEC ^ 0x11
+    codewords = [int("".join(map(str, bits[i:i + 8])), 2) for i in range(0, len(bits), 8)]
+
+    # 2. Error correction, split into blocks and interleaved.
+    num_blocks = _QR_NUM_BLOCKS[ver - 1]
+    ecc_len = _QR_ECC_PER_BLOCK[ver - 1]
+    short_blocks = num_blocks - (raw // 8) % num_blocks
+    short_len = (raw // 8) // num_blocks - ecc_len
+    divisor = _rs_divisor(ecc_len)
+    blocks, k = [], 0
+    for i in range(num_blocks):
+        d_len = short_len + (0 if i < short_blocks else 1)
+        d = codewords[k:k + d_len]
+        k += d_len
+        ecc = _rs_remainder(d, divisor)
+        if i < short_blocks:
+            d = d + [0]  # placeholder so all blocks line up; skipped below
+        blocks.append(d + ecc)
+    final = []
+    for i in range(len(blocks[0])):
+        for j, blk in enumerate(blocks):
+            if i != short_len or j >= short_blocks:
+                final.append(blk[i])
+
+    # 3. Fixed patterns.
+    modules = [[False] * size for _ in range(size)]
+    is_fn = [[False] * size for _ in range(size)]
+
+    def set_fn(x, y, dark):
+        modules[y][x] = dark
+        is_fn[y][x] = True
+
+    for i in range(size):
+        set_fn(6, i, i % 2 == 0)
+        set_fn(i, 6, i % 2 == 0)
+    for cx, cy in ((3, 3), (size - 4, 3), (3, size - 4)):
+        for dy in range(-4, 5):
+            for dx in range(-4, 5):
+                x, y = cx + dx, cy + dy
+                if 0 <= x < size and 0 <= y < size:
+                    set_fn(x, y, max(abs(dx), abs(dy)) not in (2, 4))
+    if ver >= 2:
+        cx = cy = size - 7
+        for dy in range(-2, 3):
+            for dx in range(-2, 3):
+                set_fn(cx + dx, cy + dy, max(abs(dx), abs(dy)) != 1)
+
+    def draw_format(grid, mask, mark):
+        data_bits = mask  # error correction level M has format code 0b00
+        rem = data_bits
+        for _ in range(10):
+            rem = (rem << 1) ^ ((rem >> 9) * 0x537)
+        fb = ((data_bits << 10) | rem) ^ 0x5412
+
+        def put_fmt(x, y, dark):
+            grid[y][x] = dark
+            if mark:
+                is_fn[y][x] = True
+
+        bit = lambda i: ((fb >> i) & 1) != 0
+        for i in range(6):
+            put_fmt(8, i, bit(i))
+        put_fmt(8, 7, bit(6))
+        put_fmt(8, 8, bit(7))
+        put_fmt(7, 8, bit(8))
+        for i in range(9, 15):
+            put_fmt(14 - i, 8, bit(i))
+        for i in range(8):
+            put_fmt(size - 1 - i, 8, bit(i))
+        for i in range(8, 15):
+            put_fmt(8, size - 15 + i, bit(i))
+        put_fmt(8, size - 8, True)
+
+    draw_format(modules, 0, True)
+
+    # 4. Place the data bits in the zigzag pattern.
+    all_bits = [(cw >> (7 - i)) & 1 for cw in final for i in range(8)]
+    idx = 0
+    right = size - 1
+    while right >= 1:
+        if right == 6:
+            right = 5
+        for vert in range(size):
+            for j in range(2):
+                x = right - j
+                upward = ((right + 1) & 2) == 0
+                y = size - 1 - vert if upward else vert
+                if not is_fn[y][x] and idx < len(all_bits):
+                    modules[y][x] = bool(all_bits[idx])
+                    idx += 1
+        right -= 2
+
+    # 5. Pick the best of the 8 masks.
+    def masked(m):
+        grid = [row[:] for row in modules]
+        for y in range(size):
+            for x in range(size):
+                if is_fn[y][x]:
+                    continue
+                inv = (
+                    (x + y) % 2 == 0, y % 2 == 0, x % 3 == 0, (x + y) % 3 == 0,
+                    (x // 3 + y // 3) % 2 == 0, x * y % 2 + x * y % 3 == 0,
+                    (x * y % 2 + x * y % 3) % 2 == 0, ((x + y) % 2 + x * y % 3) % 2 == 0,
+                )[m]
+                grid[y][x] = grid[y][x] != inv
+        draw_format(grid, m, False)
+        return grid
+
+    def penalty(g):
+        score = 0
+        for lines in (g, [list(c) for c in zip(*g)]):
+            for line in lines:
+                run = 1
+                for i in range(1, size):
+                    if line[i] == line[i - 1]:
+                        run += 1
+                        score += 3 if run == 5 else (1 if run > 5 else 0)
+                    else:
+                        run = 1
+                s = "".join("1" if v else "0" for v in line)
+                score += 40 * (s.count("10111010000") + s.count("00001011101"))
+        for y in range(size - 1):
+            for x in range(size - 1):
+                if g[y][x] == g[y][x + 1] == g[y + 1][x] == g[y + 1][x + 1]:
+                    score += 3
+        dark = sum(sum(row) for row in g)
+        total = size * size
+        score += ((abs(dark * 20 - total * 10) + total - 1) // total - 1) * 10
+        return score
+
+    return min((masked(m) for m in range(8)), key=penalty)
+
+
+def qr_lines(text, quiet=2):
+    """Render a QR code as lines of text that a phone camera can scan."""
+    m = make_qr(text)
+    width = len(m) + 2 * quiet
+    grid = [[False] * width for _ in range(quiet)]
+    grid += [[False] * quiet + row + [False] * quiet for row in m]
+    grid += [[False] * width for _ in range(quiet)]
+    if len(grid) % 2:
+        grid.append([False] * width)
+
+    use_color = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+    if use_color and os.name == "nt":
+        os.system("")  # switches on ANSI colour support in the Windows console
+    try:
+        "█▀▄".encode(sys.stdout.encoding or "utf-8")
+        use_blocks = True
+    except (UnicodeError, LookupError):
+        use_blocks = False
+
+    lines = []
+    if use_blocks:
+        for y in range(0, len(grid), 2):
+            row = ""
+            for x in range(width):
+                top, bottom = grid[y][x], grid[y + 1][x]
+                if use_color:  # black on white, works on any terminal theme
+                    row += "█" if top and bottom else "▀" if top else "▄" if bottom else " "
+                else:  # assume a dark terminal: light modules are the filled ones
+                    row += " " if top and bottom else "▄" if top else "▀" if bottom else "█"
+            lines.append("\x1b[30;47m" + row + "\x1b[0m" if use_color else row)
+    else:
+        for row in grid:
+            if use_color:
+                lines.append("".join("\x1b[40m  " if v else "\x1b[47m  " for v in row) + "\x1b[0m")
+            else:
+                lines.append("".join("  " if v else "##" for v in row))
+    return lines
+
+
 def local_ips():
     ips = []
     # Trick: no packets are sent, it just asks the OS which interface would be used.
@@ -431,9 +673,16 @@ def main():
     print("  On THIS laptop, open this to send files to your phone:")
     print(f"    http://localhost:{PORT}\n")
     if ips:
-        print("  On your PHONE, open Safari/Chrome and go to:")
+        print("  On your PHONE, scan the QR code with the camera,")
+        print("  or open Safari/Chrome and type the address:")
         for ip in ips:
-            print(f"    http://{ip}:{PORT}")
+            url = f"http://{ip}:{PORT}"
+            print(f"\n    {url}\n")
+            try:
+                for line in qr_lines(url):
+                    print("    " + line)
+            except Exception:
+                pass  # the QR code is a convenience; the address above still works
     else:
         print("  Couldn't detect an IP. Connect both devices to the same network,")
         print(f"  find the laptop's IP address, and open http://<that-ip>:{PORT} on the phone.")
