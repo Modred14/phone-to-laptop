@@ -25,19 +25,19 @@ jobs:
         run: pip install pyinstaller
 
       - name: Build app
-        run: pyinstaller --onefile --name PhoneToLaptop server.py
+        run: pyinstaller --onefile --name OfflineDrop server.py
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
-        run: Move-Item dist/PhoneToLaptop.exe PhoneToLaptop-Windows.exe
+        run: Move-Item dist/OfflineDrop.exe OfflineDrop-Windows.exe
 
       - name: Package (Mac)
         if: runner.os == 'macOS'
-        run: cd dist && zip ../PhoneToLaptop-Mac.zip PhoneToLaptop
+        run: cd dist && zip ../OfflineDrop-Mac.zip OfflineDrop
 
       - name: Attach to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            PhoneToLaptop-Windows.exe
-            PhoneToLaptop-Mac.zip
+            OfflineDrop-Windows.exe
+            OfflineDrop-Mac.zip

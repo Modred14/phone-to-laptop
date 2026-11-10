@@ -39,7 +39,7 @@ PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Send to Laptop</title>
+<title>OfflineDrop</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -230,7 +230,7 @@ def main():
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     ips = local_ips()
 
-    print("\n  Local file receiver is running")
+    print("\n  OfflineDrop is running")
     print(f"  Saving to: {SAVE_DIR}\n")
     if ips:
         print("  On your iPhone, open Safari and go to:")

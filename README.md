@@ -1,5 +1,5 @@
 <!-- README.md -->
-# Phone to Laptop
+# OfflineDrop
 
 Send photos, videos and files from your phone to your computer over your own
 Wi-Fi or hotspot. **No internet, no cables, no accounts, no cloud.** Free and open source.
@@ -7,8 +7,8 @@ Wi-Fi or hotspot. **No internet, no cables, no accounts, no cloud.** Free and op
 ## How to use it (no coding needed)
 
 1. Go to the **Releases** page of this project and download the file for your computer:
-   - **Windows:** `PhoneToLaptop-Windows.exe`
-   - **Mac:** `PhoneToLaptop-Mac.zip` (unzip it first)
+   - **Windows:** `OfflineDrop-Windows.exe`
+   - **Mac:** `OfflineDrop-Mac.zip` (unzip it first)
 2. Connect your phone and computer to the **same Wi-Fi**, or turn on your phone's **Personal Hotspot** and connect the computer to it. Internet is not required.
 3. Open the app. A black window appears and shows an address like `http://192.168.1.23:8000`.
 4. On your phone, open the browser and type that address.
@@ -44,4 +44,3 @@ Releases are built automatically with GitHub Actions when a version tag (like `v
 ## License
 
 MIT. Free to use, copy and modify.
-# phone-to-laptop
