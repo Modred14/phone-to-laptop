@@ -49,6 +49,10 @@ SHARE_DIR = os.path.abspath(
 )
 CHUNK = 1024 * 1024  # 1 MB
 
+# Files received from the phone during this run (newest last), shown on the laptop page.
+RECEIVED = []
+RECEIVED_LOCK = threading.Lock()
+
 PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -57,20 +61,14 @@ PAGE = """<!doctype html>
 <title>OfflineDrop</title>
 <style>
   :root {
-    --bg: #e8edf4; --ink: #101828; --mut: #475467; --tile: rgba(255,255,255,.45);
-    --glass: rgba(255,255,255,.52); --edge: rgba(255,255,255,.85); --line: rgba(16,24,40,.14);
-    --shadow: 0 12px 40px rgba(16,24,40,.10);
-    --btn: #101828; --btn-ink: #ffffff; --danger: #d92d20; --danger-bg: rgba(255,93,93,.16);
-    --blue: #2f5bff; --mint: #35d0a8; --sun: #ff9f43; --lilac: #b39bff;
-    color-scheme: light dark;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0b1020; --ink: #eef2ff; --mut: #a8b2c9; --tile: rgba(255,255,255,.07);
-      --glass: rgba(255,255,255,.08); --edge: rgba(255,255,255,.18); --line: rgba(255,255,255,.18);
-      --shadow: 0 12px 40px rgba(0,0,0,.45);
-      --btn: #eef2ff; --btn-ink: #0b1020; --danger: #ff8a80; --danger-bg: rgba(255,93,93,.18);
-    }
+    /* Dark, richer glass for better contrast */
+    --bg: #070b16; --ink: #f6f8ff; --mut: #b9c2d8; --tile: rgba(255,255,255,.06);
+    --glass: rgba(13,19,36,.76); --glass-hi: rgba(22,30,54,.84);
+    --edge: rgba(255,255,255,.15); --line: rgba(255,255,255,.2);
+    --shadow: 0 18px 50px rgba(0,0,0,.55);
+    --btn: #f2f5ff; --btn-ink: #0a0f1f; --danger: #ff9a92; --danger-bg: rgba(255,93,93,.2);
+    --blue: #2f5bff; --blue-btn: #2a4fe8; --mint: #35d0a8; --sun: #ff9f43; --lilac: #b39bff;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { margin: 0; padding: 20px 16px 40px; min-height: 100vh; background: var(--bg); color: var(--ink);
@@ -79,7 +77,8 @@ PAGE = """<!doctype html>
 
   /* Solid shapes behind the glass, so the blur has something to bend */
   .shapes { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
-  .shapes i { position: absolute; display: block; }
+  .shapes i { position: absolute; display: block; opacity: .9; filter: saturate(.92) brightness(.76); }
+  .shapes i.s2 { filter: saturate(.9) brightness(.55); }
   .s1 { width: 340px; height: 340px; border-radius: 50%; background: var(--blue); right: -110px; top: 40px; }
   .s2 { width: 160px; height: 160px; border-radius: 50%; background: var(--sun); left: -40px; top: 52%; }
   .s3 { width: 230px; height: 230px; border-radius: 52px; background: var(--mint); right: -40px; bottom: -70px; transform: rotate(18deg); }
@@ -87,33 +86,33 @@ PAGE = """<!doctype html>
 
   .glass {
     background: var(--glass);
-    -webkit-backdrop-filter: blur(24px) saturate(165%);
-    backdrop-filter: blur(24px) saturate(165%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
     border: 1px solid var(--edge);
-    box-shadow: var(--shadow), inset 0 1px 0 var(--edge);
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.12);
   }
 
   .hero { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-radius: 26px; }
   .mark { flex: none; width: 46px; height: 46px; border-radius: 14px; background: var(--blue); display: grid; place-items: center; }
-  h1 { font-size: 22px; font-weight: 750; letter-spacing: -.02em; line-height: 1.15; margin: 0 0 3px; }
-  p.sub { color: var(--mut); margin: 0; font-size: 14px; line-height: 1.4; }
+  h1 { font-size: 22px; font-weight: 750; letter-spacing: -.02em; line-height: 1.15; margin: 0 0 3px; color: #fff; }
+  p.sub { color: var(--mut); margin: 0; font-size: 14.5px; line-height: 1.4; }
 
   .card { padding: 20px; border-radius: 28px; }
   h2 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 14px; }
 
   label.pick { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 26px 16px;
-               border: 1.5px dashed var(--line); border-radius: 20px; background: var(--tile); font-size: 16px; font-weight: 600; cursor: pointer; }
+               border: 1.5px dashed rgba(255,255,255,.32); border-radius: 20px; background: var(--tile); font-size: 16px; font-weight: 600; cursor: pointer; }
   label.pick::before { content: "+"; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
                        background: var(--btn); color: var(--btn-ink); font-size: 24px; font-weight: 400; line-height: 1; }
-  label.pick:hover, label.pick:focus-within { border-color: var(--blue); }
+  label.pick:hover, label.pick:focus-within { border-color: #8aa2ff; background: rgba(255,255,255,.09); }
   input[type=file] { display: none; }
 
   button { width: 100%; margin-top: 14px; padding: 15px; font-family: inherit; font-size: 16px; font-weight: 600;
            border: 0; border-radius: 999px; background: var(--btn); color: var(--btn-ink); cursor: pointer; }
-  button:disabled { background: var(--line); color: var(--mut); cursor: default; }
-  button:focus-visible, a:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+  button:disabled { background: rgba(255,255,255,.1); color: #98a3bd; cursor: default; }
+  button:focus-visible, a:focus-visible { outline: 3px solid #8aa2ff; outline-offset: 3px; }
 
-  .file { margin-top: 12px; background: var(--tile); border: 1px solid var(--edge); border-radius: 16px; padding: 12px 14px; font-size: 14px; }
+  .file { margin-top: 12px; background: var(--glass-hi); border: 1px solid var(--edge); border-radius: 16px; padding: 12px 14px; font-size: 14.5px; }
   .file .row { display: flex; justify-content: space-between; gap: 10px; }
   .file .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .file .row span:last-child { color: var(--mut); flex: none; }
@@ -121,14 +120,17 @@ PAGE = """<!doctype html>
   .bar > div { height: 100%; width: 0; background: var(--blue); border-radius: 99px; transition: width .1s; }
   .done .bar > div { background: var(--mint); }
   .err .bar > div { background: #ff5d5d; }
-  .meta { color: var(--mut); font-size: 12px; margin-top: 5px; }
-  .empty { color: var(--mut); font-size: 14px; padding: 6px 2px; }
+  .meta { color: var(--mut); font-size: 13px; margin-top: 5px; }
+  .empty { color: var(--mut); font-size: 14.5px; padding: 6px 2px; }
 
   .btn { display: block; width: 100%; margin-top: 10px; padding: 11px; font-size: 15px; text-align: center; text-decoration: none;
          border-radius: 999px; background: var(--btn); color: var(--btn-ink); font-weight: 600; }
   .btn.red { background: var(--danger-bg); color: var(--danger); }
 
-  .foot { text-align: center; color: var(--mut); font-size: 13px; margin: 4px 0 0; }
+  .file.fresh { border-color: var(--mint); box-shadow: 0 0 0 1px rgba(53,208,168,.35); }
+  .got-tag { display: inline-flex; align-items: center; gap: 6px; color: var(--mint); font-weight: 600; }
+  .got-tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--mint); }
+  .foot { text-align: center; color: var(--mut); font-size: 13.5px; margin: 4px 0 0; }
 </style>
 </head>
 <body>
@@ -155,6 +157,11 @@ PAGE = """<!doctype html>
   <section class="glass card">
     <h2 id="recvHead"></h2>
     <div id="shared"></div>
+  </section>
+
+  <section class="glass card" id="gotBox" hidden>
+    <h2>Received from phone</h2>
+    <div id="got"></div>
   </section>
 
   <p class="foot">Files stay on your local network. Nothing goes through the internet.</p>
@@ -185,6 +192,7 @@ const send = document.getElementById('send');
 const list = document.getElementById('list');
 const pick = document.getElementById('pick');
 const shared = document.getElementById('shared');
+const got = document.getElementById('got');
 let queue = [];
 let lastJson = null;
 
@@ -294,8 +302,53 @@ async function refresh() {
   } catch (e) { /* server not reachable right now; try again next time */ }
 }
 
+const ago = s => s < 10 ? 'just now' : s < 60 ? Math.round(s) + ' s ago' : s < 3600 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago';
+
+async function refreshGot() {
+  try {
+    const r = await fetch('/received', { cache: 'no-store' });
+    if (!r.ok) return;
+    const data = await r.json();
+    got.innerHTML = '';
+    if (!data.files.length) {
+      const e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = 'Nothing received yet. Files you send from your phone will show up here.';
+      got.appendChild(e);
+      return;
+    }
+    data.files.forEach(f => {
+      const age = Math.max(0, data.now - f.time);
+      const d = document.createElement('div');
+      d.className = 'file' + (age < 8 ? ' fresh' : '');
+      const row = document.createElement('div');
+      row.className = 'row';
+      const n = document.createElement('span');
+      n.className = 'name';
+      n.textContent = f.name;
+      const sz = document.createElement('span');
+      sz.textContent = fmt(f.size);
+      row.appendChild(n); row.appendChild(sz);
+      const m = document.createElement('div');
+      m.className = 'meta';
+      const tag = document.createElement('span');
+      tag.className = 'got-tag';
+      tag.textContent = 'Received';
+      m.appendChild(tag);
+      m.appendChild(document.createTextNode('  ·  ' + ago(age) + '  ·  saved to ' + data.dir));
+      d.appendChild(row); d.appendChild(m);
+      got.appendChild(d);
+    });
+  } catch (e) { /* try again next time */ }
+}
+
 refresh();
 setInterval(refresh, 3000);
+if (isLaptop) {
+  document.getElementById('gotBox').hidden = false;
+  refreshGot();
+  setInterval(refreshGot, 2000);
+}
 </script>
 </body>
 </html>
@@ -359,6 +412,15 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(200, PAGE.replace("__MODE__", mode).encode(), "text/html; charset=utf-8")
         elif parsed.path == "/files":
             self._reply(200, json.dumps(list_shared()).encode(), "application/json")
+        elif parsed.path == "/received":
+            # What the phone has sent us: only the laptop itself may look at this list.
+            if not self._is_local():
+                self.close_connection = True
+                return self._reply(403, b"Only the laptop can do this")
+            with RECEIVED_LOCK:
+                items = list(reversed(RECEIVED))[:100]
+            body = {"dir": SAVE_DIR, "files": items, "now": time.time()}
+            self._reply(200, json.dumps(body).encode(), "application/json")
         elif parsed.path == "/download":
             self._download(parsed)
         else:
@@ -368,7 +430,7 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/upload":
             # Phone -> laptop (anyone on the network may send)
-            return self._receive(parsed, SAVE_DIR, "RECEIVING", "RECEIVED")
+            return self._receive(parsed, SAVE_DIR, "RECEIVING", "RECEIVED", record=True)
         if parsed.path in ("/share", "/delete"):
             # Laptop -> phone management: only the laptop itself may do this
             if not self._is_local():
@@ -380,7 +442,7 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
         self._reply(404, b"Not found")
 
-    def _receive(self, parsed, directory, start_label, done_label):
+    def _receive(self, parsed, directory, start_label, done_label, record=False):
         name = safe_name(parse_qs(parsed.query).get("name", ["file"])[0])
         try:
             remaining = int(self.headers.get("Content-Length", "0"))
@@ -411,6 +473,9 @@ class Handler(BaseHTTPRequestHandler):
             self.close_connection = True
             return
 
+        if record:
+            with RECEIVED_LOCK:
+                RECEIVED.append({"name": os.path.basename(dest), "size": total, "time": time.time()})
         secs = max(time.time() - t0, 0.001)
         self._reply(200, b"ok")
         print(f"  [{done_label}] {os.path.basename(dest)}  {total/1e6:.1f} MB  ({total/1e6/secs:.1f} MB/s)")
