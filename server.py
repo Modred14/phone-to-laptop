@@ -53,52 +53,112 @@ PAGE = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>OfflineDrop</title>
 <style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 24px 16px; font-family: -apple-system, system-ui, sans-serif;
-         background: #111; color: #eee; max-width: 520px; margin-inline: auto; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  h2 { font-size: 17px; margin: 28px 0 10px; padding-top: 18px; border-top: 1px solid #2a2a2a; }
-  h2.first { margin-top: 20px; border-top: 0; padding-top: 0; }
-  p.sub { color: #999; margin: 0 0 20px; font-size: 14px; }
-  label.pick { display: block; text-align: center; padding: 28px 16px; border: 2px dashed #444;
-               border-radius: 14px; font-size: 17px; background: #1a1a1a; }
+  :root {
+    --bg: #e8edf4; --ink: #101828; --mut: #475467; --tile: rgba(255,255,255,.45);
+    --glass: rgba(255,255,255,.52); --edge: rgba(255,255,255,.85); --line: rgba(16,24,40,.14);
+    --shadow: 0 12px 40px rgba(16,24,40,.10);
+    --btn: #101828; --btn-ink: #ffffff; --danger: #d92d20; --danger-bg: rgba(255,93,93,.16);
+    --blue: #2f5bff; --mint: #35d0a8; --sun: #ff9f43; --lilac: #b39bff;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1020; --ink: #eef2ff; --mut: #a8b2c9; --tile: rgba(255,255,255,.07);
+      --glass: rgba(255,255,255,.08); --edge: rgba(255,255,255,.18); --line: rgba(255,255,255,.18);
+      --shadow: 0 12px 40px rgba(0,0,0,.45);
+      --btn: #eef2ff; --btn-ink: #0b1020; --danger: #ff8a80; --danger-bg: rgba(255,93,93,.18);
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; padding: 20px 16px 40px; min-height: 100vh; background: var(--bg); color: var(--ink);
+         font: 400 16px/1.5 -apple-system, "Segoe UI", system-ui, Roboto, sans-serif; overflow-x: hidden; }
+  main { max-width: 540px; margin: 0 auto; display: grid; gap: 16px; }
+
+  /* Solid shapes behind the glass, so the blur has something to bend */
+  .shapes { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+  .shapes i { position: absolute; display: block; }
+  .s1 { width: 340px; height: 340px; border-radius: 50%; background: var(--blue); right: -110px; top: 40px; }
+  .s2 { width: 160px; height: 160px; border-radius: 50%; background: var(--sun); left: -40px; top: 52%; }
+  .s3 { width: 230px; height: 230px; border-radius: 52px; background: var(--mint); right: -40px; bottom: -70px; transform: rotate(18deg); }
+  .s4 { width: 96px; height: 96px; border-radius: 50%; background: var(--lilac); left: 34%; top: 6px; }
+
+  .glass {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(24px) saturate(165%);
+    backdrop-filter: blur(24px) saturate(165%);
+    border: 1px solid var(--edge);
+    box-shadow: var(--shadow), inset 0 1px 0 var(--edge);
+  }
+
+  .hero { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-radius: 26px; }
+  .mark { flex: none; width: 46px; height: 46px; border-radius: 14px; background: var(--blue); display: grid; place-items: center; }
+  h1 { font-size: 22px; font-weight: 750; letter-spacing: -.02em; line-height: 1.15; margin: 0 0 3px; }
+  p.sub { color: var(--mut); margin: 0; font-size: 14px; line-height: 1.4; }
+
+  .card { padding: 20px; border-radius: 28px; }
+  h2 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 14px; }
+
+  label.pick { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 26px 16px;
+               border: 1.5px dashed var(--line); border-radius: 20px; background: var(--tile); font-size: 16px; font-weight: 600; cursor: pointer; }
+  label.pick::before { content: "+"; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+                       background: var(--btn); color: var(--btn-ink); font-size: 24px; font-weight: 400; line-height: 1; }
+  label.pick:hover, label.pick:focus-within { border-color: var(--blue); }
   input[type=file] { display: none; }
-  button { width: 100%; margin-top: 14px; padding: 16px; font-size: 17px; font-weight: 600;
-           border: 0; border-radius: 12px; background: #2f7df6; color: #fff; }
-  button:disabled { background: #333; color: #777; }
-  .file { margin-top: 12px; background: #1a1a1a; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
-  .file .row { display: flex; justify-content: space-between; gap: 8px; }
-  .file .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .bar { height: 6px; background: #333; border-radius: 3px; margin-top: 8px; overflow: hidden; }
-  .bar > div { height: 100%; width: 0; background: #2f7df6; transition: width .1s; }
-  .done .bar > div { background: #34c759; }
-  .err .bar > div { background: #ff453a; }
-  .meta { color: #999; font-size: 12px; margin-top: 4px; }
-  .empty { color: #777; font-size: 14px; }
-  .btn { display: block; width: 100%; margin-top: 10px; padding: 11px; font-size: 15px; font-weight: 600;
-         text-align: center; text-decoration: none; border: 0; border-radius: 10px;
-         background: #2f7df6; color: #fff; }
-  .btn.red { background: #3a2222; color: #ff6b61; }
+
+  button { width: 100%; margin-top: 14px; padding: 15px; font-family: inherit; font-size: 16px; font-weight: 600;
+           border: 0; border-radius: 999px; background: var(--btn); color: var(--btn-ink); cursor: pointer; }
+  button:disabled { background: var(--line); color: var(--mut); cursor: default; }
+  button:focus-visible, a:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+
+  .file { margin-top: 12px; background: var(--tile); border: 1px solid var(--edge); border-radius: 16px; padding: 12px 14px; font-size: 14px; }
+  .file .row { display: flex; justify-content: space-between; gap: 10px; }
+  .file .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .file .row span:last-child { color: var(--mut); flex: none; }
+  .bar { height: 7px; background: var(--line); border-radius: 99px; margin-top: 9px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: var(--blue); border-radius: 99px; transition: width .1s; }
+  .done .bar > div { background: var(--mint); }
+  .err .bar > div { background: #ff5d5d; }
+  .meta { color: var(--mut); font-size: 12px; margin-top: 5px; }
+  .empty { color: var(--mut); font-size: 14px; padding: 6px 2px; }
+
+  .btn { display: block; width: 100%; margin-top: 10px; padding: 11px; font-size: 15px; text-align: center; text-decoration: none;
+         border-radius: 999px; background: var(--btn); color: var(--btn-ink); font-weight: 600; }
+  .btn.red { background: var(--danger-bg); color: var(--danger); }
+
+  .foot { text-align: center; color: var(--mut); font-size: 13px; margin: 4px 0 0; }
 </style>
 </head>
 <body>
-  <h1 id="title"></h1>
-  <p class="sub" id="sub"></p>
+<div class="shapes" aria-hidden="true"><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4"></i></div>
+<main>
+  <header class="glass hero">
+    <span class="mark" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-4-4M19 16H5l4 4"/></svg></span>
+    <div>
+      <h1 id="title"></h1>
+      <p class="sub" id="sub"></p>
+    </div>
+  </header>
 
-  <h2 class="first" id="sendHead"></h2>
-  <label class="pick" id="pick">
-    Tap to choose files
-    <input type="file" id="files" multiple>
-  </label>
-  <button id="send" disabled>Send</button>
-  <div id="list"></div>
+  <section class="glass card">
+    <h2 id="sendHead"></h2>
+    <label class="pick" id="pick">
+      Tap to choose files
+      <input type="file" id="files" multiple>
+    </label>
+    <button id="send" disabled>Send</button>
+    <div id="list"></div>
+  </section>
 
-  <h2 id="recvHead"></h2>
-  <div id="shared"></div>
+  <section class="glass card">
+    <h2 id="recvHead"></h2>
+    <div id="shared"></div>
+  </section>
+
+  <p class="foot">Files stay on your local network. Nothing goes through the internet.</p>
+</main>
 
 <script>
 const MODE = '__MODE__';
