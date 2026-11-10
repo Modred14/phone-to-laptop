@@ -257,6 +257,7 @@
   <footer>
     <p>OfflineDrop is free and open source under the MIT license.</p>
     <p><a href="https://github.com/Modred14/phone-to-laptop">Source code</a><a href="https://github.com/Modred14/phone-to-laptop/releases">All releases</a></p>
+    <p>This page counts visits anonymously (a random ID stored in your browser, no cookies or personal data, and it respects Do Not Track). The app itself never contacts us.</p>
   </footer>
 </div>
 
@@ -275,6 +276,45 @@
       document.getElementById("secondaryText").textContent = "Download for Windows";
     }
     if (isPhone) document.getElementById("mobilenote").style.display = "block";
+  })();
+
+  // Anonymous visit + download-click counting (see netlify/functions/track.mjs).
+  // Never throws and never blocks the page; skipped for Do Not Track / Global Privacy Control.
+  (function () {
+    try {
+      if (navigator.doNotTrack === "1" || window.doNotTrack === "1" || navigator.globalPrivacyControl) return;
+      var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      var id = null;
+      try { id = localStorage.getItem("od_vid"); } catch (e) {}
+      if (!id || !UUID.test(id)) {
+        if (window.crypto && crypto.randomUUID) id = crypto.randomUUID();
+        else {
+          var b = crypto.getRandomValues(new Uint8Array(16));
+          b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+          var h = Array.prototype.map.call(b, function (x) { return ("0" + x.toString(16)).slice(-2); }).join("");
+          id = h.slice(0, 8) + "-" + h.slice(8, 12) + "-" + h.slice(12, 16) + "-" + h.slice(16, 20) + "-" + h.slice(20);
+        }
+        try { localStorage.setItem("od_vid", id); } catch (e) {}
+      }
+      function send(type, platform) {
+        var body = { id: id, type: type };
+        if (platform) body.platform = platform;
+        fetch("/api/track", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), keepalive: true }).catch(function () {});
+      }
+      send("view");
+      // "Active now" heartbeat: only while the tab is visible, stops after 30 minutes.
+      var beats = 0;
+      var timer = setInterval(function () {
+        if (++beats > 30) return clearInterval(timer);
+        if (document.visibilityState === "visible") send("ping");
+      }, 60000);
+      document.addEventListener("click", function (e) {
+        var a = e.target.closest && e.target.closest("a[href*='/releases/download/']");
+        if (!a) return;
+        var href = a.getAttribute("href") || "";
+        send("download", /\.exe(\?|$)/i.test(href) ? "windows" : /\.zip(\?|$)/i.test(href) ? "mac" : null);
+      });
+    } catch (e) { /* analytics must never break the page */ }
   })();
 </script>
 </body>
