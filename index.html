@@ -172,11 +172,11 @@
       <h1>Move files between your phone and laptop. No internet needed.</h1>
       <p class="lead">Send photos, videos and documents both ways over your own Wi‑Fi or phone hotspot. Scan a code, pick your files, done.</p>
       <div class="cta">
-        <a class="btn" id="primary" href="https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Windows.exe">
+        <a class="btn" id="primary" href="/OfflineDrop-Windows.exe" download>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
           <span id="primaryText">Download for Windows</span>
         </a>
-        <a class="btn ghost" id="secondary" href="https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Mac.zip">
+        <a class="btn ghost" id="secondary" href="https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Mac.zip" download>
           <span id="secondaryText">Download for Mac</span>
         </a>
       </div>
@@ -235,7 +235,7 @@
       <h2>Get OfflineDrop</h2>
       <p class="sub">Free for Windows and Mac. You only need the internet to download it.</p>
       <div class="cta">
-        <a class="btn" href="https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Windows.exe">Download for Windows</a>
+        <a class="btn" href="/OfflineDrop-Windows.exe" download>Download for Windows</a>
         <a class="btn ghost" href="https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Mac.zip">Download for Mac</a>
       </div>
 
@@ -269,7 +269,7 @@
     var isMac = !isPhone && /Mac/i.test(navigator.platform || ua);
     if (isMac) {
       var p = document.getElementById("primary"), s = document.getElementById("secondary");
-      var win = "https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Windows.exe";
+      var win = "/OfflineDrop-Windows.exe";
       var mac = "https://github.com/Modred14/phone-to-laptop/releases/download/latest/OfflineDrop-Mac.zip";
       p.href = mac; s.href = win;
       document.getElementById("primaryText").textContent = "Download for Mac";
@@ -309,7 +309,7 @@
         if (document.visibilityState === "visible") send("ping");
       }, 60000);
       document.addEventListener("click", function (e) {
-        var a = e.target.closest && e.target.closest("a[href*='/releases/download/']");
+        var a = e.target.closest && e.target.closest("a[href*='.exe'], a[href*='/releases/download/']");
         if (!a) return;
         var href = a.getAttribute("href") || "";
         send("download", /\.exe(\?|$)/i.test(href) ? "windows" : /\.zip(\?|$)/i.test(href) ? "mac" : null);
