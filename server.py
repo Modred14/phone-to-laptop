@@ -71,12 +71,18 @@ PAGE = """<!doctype html>
     color-scheme: dark;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body { margin: 0; padding: 20px 16px 40px; min-height: 100vh; background: var(--bg); color: var(--ink);
-         font: 400 16px/1.5 -apple-system, "Segoe UI", system-ui, Roboto, sans-serif; overflow-x: hidden; }
-  main { max-width: 540px; margin: 0 auto; display: grid; gap: 16px; }
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; width: 100%; max-width: 100%; overflow-x: hidden; }
+  body { margin: 0; width: 100%; max-width: 100%; min-height: 100vh; min-height: 100dvh; background: var(--bg); color: var(--ink);
+         /* keep content clear of notches, rounded corners and the home bar */
+         padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(40px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+         font: 400 16px/1.5 -apple-system, "Segoe UI", system-ui, Roboto, sans-serif; overflow-x: hidden; overflow-wrap: anywhere; }
+  /* minmax(0,1fr) is the key line: a plain implicit column grows to fit the widest
+     unbreakable child (a long filename), which pushed the cards past the screen. */
+  main { width: 100%; max-width: 540px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  main > * { min-width: 0; max-width: 100%; }
 
   /* Solid shapes behind the glass, so the blur has something to bend */
-  .shapes { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+  .shapes { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; contain: paint; }
   .shapes i { position: absolute; display: block; opacity: .9; filter: saturate(.92) brightness(.76); }
   .shapes i.s2 { filter: saturate(.9) brightness(.55); }
   .s1 { width: 340px; height: 340px; border-radius: 50%; background: var(--blue); right: -110px; top: 40px; }
@@ -93,6 +99,7 @@ PAGE = """<!doctype html>
   }
 
   .hero { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-radius: 26px; }
+  .hero > div { min-width: 0; flex: 1 1 auto; }
   .mark { flex: none; width: 46px; height: 46px; border-radius: 14px; background: var(--blue); display: grid; place-items: center; }
   h1 { font-size: 22px; font-weight: 750; letter-spacing: -.02em; line-height: 1.15; margin: 0 0 3px; color: #fff; }
   p.sub { color: var(--mut); margin: 0; font-size: 14.5px; line-height: 1.4; }
@@ -113,9 +120,10 @@ PAGE = """<!doctype html>
   button:focus-visible, a:focus-visible { outline: 3px solid #8aa2ff; outline-offset: 3px; }
 
   .file { margin-top: 12px; background: var(--glass-hi); border: 1px solid var(--edge); border-radius: 16px; padding: 12px 14px; font-size: 14.5px; }
-  .file .row { display: flex; justify-content: space-between; gap: 10px; }
-  .file .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  .file .row span:last-child { color: var(--mut); flex: none; }
+  .file { min-width: 0; max-width: 100%; }
+  .file .row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; min-width: 0; }
+  .file .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .file .row span:last-child { color: var(--mut); flex: none; white-space: nowrap; }
   .bar { height: 7px; background: var(--line); border-radius: 99px; margin-top: 9px; overflow: hidden; }
   .bar > div { height: 100%; width: 0; background: var(--blue); border-radius: 99px; transition: width .1s; }
   .done .bar > div { background: var(--mint); }
@@ -131,6 +139,16 @@ PAGE = """<!doctype html>
   .got-tag { display: inline-flex; align-items: center; gap: 6px; color: var(--mint); font-weight: 600; }
   .got-tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--mint); }
   .foot { text-align: center; color: var(--mut); font-size: 13.5px; margin: 4px 0 0; }
+  .card, label.pick { max-width: 100%; }
+
+  @media (max-width: 380px) {
+    body { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+    .hero { padding: 14px; gap: 12px; border-radius: 22px; }
+    .card { padding: 16px; border-radius: 24px; }
+    h1 { font-size: 20px; }
+    label.pick { padding: 20px 12px; }
+  }
+  @media (min-width: 900px) { body { padding-top: max(40px, env(safe-area-inset-top)); } }
 </style>
 </head>
 <body>

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>OfflineDrop: move files between your phone and laptop, no internet needed</title>
 <meta name="description" content="Free, open-source app that sends photos, videos and files between your phone and your computer over your own Wi-Fi or hotspot. No internet, no account.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232f5bff'/%3E%3Cpath d='M18 24h26l-7-7M46 40H20l7 7' stroke='white' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -23,11 +23,13 @@
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; scroll-padding-top: 96px; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 17px/1.6 var(--body); overflow-x: hidden; }
+  html { scroll-behavior: smooth; scroll-padding-top: 96px; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; max-width: 100%; overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 17px/1.6 var(--body); overflow-x: hidden; overflow-wrap: break-word; }
   a { color: inherit; }
   a:focus-visible, summary:focus-visible { outline: 3px solid #8aa2ff; outline-offset: 3px; border-radius: 12px; }
   .wrap { width: min(1120px, 100% - 40px); margin-inline: auto; }
+  @supports (padding: max(0px)) { .wrap { width: min(1120px, 100% - max(40px, env(safe-area-inset-left) + env(safe-area-inset-right) + 32px)); } }
+  .hero > *, .strip > *, .steps > * { min-width: 0; }
 
   /* Solid shapes sit behind the glass so the blur has something to bend */
   .shapes { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
@@ -81,7 +83,7 @@
   .lbl { margin: 0 0 12px; font: 700 15px var(--display); }
   .row { margin-bottom: 16px; }
   .rn { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
-  .rn b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rn b { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rn span, .row small { color: var(--mut); font-size: 13.5px; }
   .track { height: 7px; border-radius: 99px; background: var(--line); margin: 7px 0 4px; overflow: hidden; }
   .track u { display: block; height: 100%; border-radius: 99px; background: var(--mint); width: var(--to); }
@@ -145,8 +147,10 @@
     .nav li:not(:last-child) { display: none; }
   }
   @media (max-width: 480px) {
-    .win { width: 92%; } .phone { width: 58%; }
+    .win { width: 92%; } .phone { width: 58%; min-width: 0; }
     .btn { width: 100%; }
+    .nav { padding: 8px 8px 8px 14px; }
+    .brand { font-size: 18px; }
   }
 </style>
 </head>
